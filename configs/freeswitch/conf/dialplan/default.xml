@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- http://wiki.freeswitch.org/wiki/Dialplan_XML -->
+<include>
+  <context name="default">
+
+    <extension name="acknowledge_call">
+      <condition field="destination_number" expression="^(.*)$">
+          <action application="set" data="RECORD_STEREO=true"/>
+          <action application="set" data="media_bug_answer_req=true"/>
+          <action application="set" data="fire_asr_events=true"/>
+          <action application="set" data="playback_terminators=none"/>
+          <action application="echo"/>
+          <action application="park"/>
+      </condition>
+    </extension>
+  </context>
+</include>

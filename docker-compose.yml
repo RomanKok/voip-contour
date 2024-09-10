@@ -1,0 +1,79 @@
+version: '3'
+services:
+
+  freeswitch:
+    image: freeswitch-ubuntu:22.04
+    hostname: fs_voicetail
+    volumes:
+      - ${PWD}/configs/freeswitch/conf:/usr/local/freeswitch/conf
+      - ${PWD}/configs/freeswitch/sounds:/usr/local/freeswitch/user_sounds
+    command: >
+      bash -c "\
+        /usr/local/freeswitch/bin/freeswitch -c -nf -nonat \
+          -base /usr/local/freeswitch \
+          -conf /usr/local/freeswitch/conf \
+          -log /var/log/freeswitch \
+          -run /usr/local/freeswitch/run"
+    depends_on:
+      - opensips
+    networks:
+      voip-contour_br:
+        ipv4_address: 10.11.1.3
+
+  sipp_ua:
+    image: sipp-ubuntu:22.04
+    hostname: sip_ua
+    volumes:
+      - ./fixtures/sipp:/sipp_scenario:cached
+      - ./tests:/tests:cached
+    command: bash -c "while true; do sleep 10; done"
+    stdin_open: true
+    depends_on:
+      - freeswitch
+    networks:
+      voip-contour_br:
+        ipv4_address: 10.11.1.5
+
+  opensips:
+    image: opensips-ubuntu:22.04
+    hostname: opensips
+    volumes:
+      - ${PWD}/configs/opensips/opensips.cfg:/etc/opensips/opensips.cfg
+    command: >
+      bash -c "\
+        while ! echo > /dev/tcp/postgres_opensips/5432; do sleep 1; done 2>/dev/null && \
+        sleep 1 && \
+        /usr/local/sbin/opensips -f /etc/opensips/opensips.cfg -F"
+    networks:
+      voip-contour_br:
+        ipv4_address: 10.11.1.6
+    depends_on:
+      - postgres_opensips
+      - redis
+
+  postgres_opensips:
+    image: postgres:13
+    hostname: postgres_opensips
+    environment:
+      - POSTGRES_HOST_AUTH_METHOD=trust
+      - POSTGRES_DB=opensips
+      - POSTGRES_USER=opensips_rw
+    volumes:
+      - ${PWD}/configs/opensips/migrations/opensips_db.sql:/docker-entrypoint-initdb.d/opensips_db.sql
+    networks:
+      voip-contour_br:
+        ipv4_address: 10.11.1.7
+
+  redis:
+    image: redis
+    hostname: redis
+    networks:
+      voip-contour_br:
+        ipv4_address: 10.11.1.8
+
+networks:
+  voip-contour_br:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.11.1.0/26
